@@ -1,0 +1,21 @@
+services:
+
+  backend:
+    build: ./backend
+    environment:
+      APP_PATH: /mnt/app
+      DB_CHECK_INTERVAL: "30"
+    volumes:
+      - ./app_data:/mnt/app
+      - ./contacts.vcf:/mnt/app/contacts.vcf:ro
+    ports:
+      - "8000:8000"
+    restart: unless-stopped
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+    restart: unless-stopped

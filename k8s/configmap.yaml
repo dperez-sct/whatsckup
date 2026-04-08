@@ -1,0 +1,10 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: whatsckup-config
+  namespace: whats
+data:
+  INPUT_PATH: /mnt/input
+  APP_PATH:   /mnt/app
+  MEDIA_PATH:    /mnt/input
+  CONTACTS_VCF:  /mnt/input/contacts.vcf

@@ -1,0 +1,16 @@
+k8s/secret.yaml
+
+# Python
+venv/
+__pycache__/
+*.pyc
+
+# Node
+frontend/node_modules/
+frontend/dist/
+
+# Local dev data
+app_data/
+*.db
+*.crypt15
+contacts.vcf

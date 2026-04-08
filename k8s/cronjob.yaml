@@ -1,0 +1,41 @@
+# schedule: cada hora. Ajusta según necesidad (cron syntax)
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: whatsckup-syncer
+  namespace: whats
+spec:
+  schedule: "0 * * * *"
+  concurrencyPolicy: Forbid          # evita solapamientos si tarda más de 1h
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          restartPolicy: OnFailure
+          containers:
+            - name: syncer
+              image: ghcr.io/dperez-sct/whatsckup-syncer:dev2
+              envFrom:
+                - configMapRef:
+                    name: whatsckup-config
+              env:
+                - name: CRYPT_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: whatsckup-secret
+                      key:  crypt-key
+              volumeMounts:
+                - name: input
+                  mountPath: /mnt/input
+                  readOnly: true
+                - name: app
+                  mountPath: /mnt/app
+          volumes:
+            - name: input
+              persistentVolumeClaim:
+                claimName: whatsckup-input-pvc
+            - name: app
+              persistentVolumeClaim:
+                claimName: whatsckup-app-pvc

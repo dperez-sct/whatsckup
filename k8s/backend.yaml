@@ -1,0 +1,56 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: whatsckup-backend
+  namespace: whats
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: whatsckup-backend
+  template:
+    metadata:
+      labels:
+        app: whatsckup-backend
+    spec:
+      containers:
+        - name: backend
+          image: ghcr.io/dperez-sct/whatsckup-backend:dev8
+          ports:
+            - containerPort: 8000
+          envFrom:
+            - configMapRef:
+                name: whatsckup-config
+          volumeMounts:
+            - name: app
+              mountPath: /mnt/app
+              # NO readOnly: SQLite WAL necesita crear .shm en el mismo directorio
+            - name: input
+              mountPath: /mnt/input
+              readOnly: true
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 5
+            periodSeconds: 30
+      volumes:
+        - name: app
+          persistentVolumeClaim:
+            claimName: whatsckup-app-pvc
+        - name: input
+          persistentVolumeClaim:
+            claimName: whatsckup-input-pvc
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: whatsckup-backend
+  namespace: whats
+spec:
+  selector:
+    app: whatsckup-backend
+  ports:
+    - port: 8000
+      targetPort: 8000

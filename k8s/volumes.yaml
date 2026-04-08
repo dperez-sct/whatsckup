@@ -1,0 +1,54 @@
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: whatsckup-input-pv
+spec:
+  capacity:
+    storage: 50Gi
+  accessModes: [ReadOnlyMany]
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: ""
+  nfs:
+    server: 192.168.1.1
+    path:   /volume1/k8s/whatsckup/upload
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: whatsckup-input-pvc
+  namespace: whats
+spec:
+  accessModes: [ReadOnlyMany]
+  storageClassName: ""
+  resources:
+    requests:
+      storage: 50Gi
+  volumeName: whatsckup-input-pv
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: whatsckup-app-pv
+spec:
+  capacity:
+    storage: 50Gi
+  accessModes: [ReadWriteMany]
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: ""
+  nfs:
+    server: 192.168.1.1
+    path:   /volume1/k8s/whatsckup/data
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: whatsckup-app-pvc
+  namespace: whats
+spec:
+  accessModes: [ReadWriteMany]
+  storageClassName: ""
+  resources:
+    requests:
+      storage: 50Gi
+  volumeName: whatsckup-app-pv

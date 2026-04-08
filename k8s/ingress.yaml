@@ -1,0 +1,37 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: whatsckup
+  namespace: whats
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-body-size: "100m"
+spec:
+  ingressClassName: traefik
+  rules:
+    - host: whats.cloud.jukito.com
+      http:
+        paths:
+          - path: /api
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: whatsckup-backend
+                port:
+                  number: 8000
+          - path: /media
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: whatsckup-backend
+                port:
+                  number: 8000
+          - path: /
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: whatsckup-frontend
+                port:
+                  number: 80
+  tls:
+    - hosts:
+        - whats.cloud.jukito.com

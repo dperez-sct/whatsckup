@@ -1,0 +1,33 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: whatsckup-frontend
+  namespace: whats
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: whatsckup-frontend
+  template:
+    metadata:
+      labels:
+        app: whatsckup-frontend
+    spec:
+      containers:
+        - name: frontend
+          image: ghcr.io/dperez-sct/whatsckup-frontend:dev8
+          ports:
+            - containerPort: 80
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: whatsckup-frontend
+  namespace: whats
+spec:
+  selector:
+    app: whatsckup-frontend
+  ports:
+    - port: 80
+      targetPort: 80
