@@ -8,7 +8,7 @@ metadata:
 spec:
   ingressClassName: traefik
   rules:
-    - host: whats.cloud.jukito.com
+    - host: <TU_DOMINIO>
       http:
         paths:
           - path: /api
@@ -34,4 +34,4 @@ spec:
                   number: 80
   tls:
     - hosts:
-        - whats.cloud.jukito.com
+        - <TU_DOMINIO>

@@ -10,8 +10,8 @@ spec:
   persistentVolumeReclaimPolicy: Retain
   storageClassName: ""
   nfs:
-    server: 192.168.1.1
-    path:   /volume1/k8s/whatsckup/upload
+    server: <NFS_SERVER>
+    path:   <UPLOAD_PATH>    # crypt15 + Media/ + contacts.vcf
 ---
 apiVersion: v1
 kind: PersistentVolumeClaim
@@ -37,8 +37,8 @@ spec:
   persistentVolumeReclaimPolicy: Retain
   storageClassName: ""
   nfs:
-    server: 192.168.1.1
-    path:   /volume1/k8s/whatsckup/data
+    server: <NFS_SERVER>
+    path:   <DATA_PATH>      # master DB (msgstore.db, wa.db)
 ---
 apiVersion: v1
 kind: PersistentVolumeClaim

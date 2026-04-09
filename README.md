@@ -30,7 +30,7 @@ ghcr.io/dperez-sct/whatsckup-frontend:dev8
 [Móvil Android]
       │  Syncthing / SFTP / ADB WiFi
       ▼
-[NFS upload]  192.168.1.1:/volume1/k8s/whatsckup/upload
+[NFS upload]  <NFS_SERVER>:<UPLOAD_PATH>
   msgstore.db.crypt15
   wa.db.crypt15
   contacts.vcf
@@ -42,7 +42,7 @@ ghcr.io/dperez-sct/whatsckup-frontend:dev8
       │
       │  syncer (CronJob en k8s)
       ▼
-[NFS data]  192.168.1.1:/volume1/k8s/whatsckup/data
+[NFS data]  <NFS_SERVER>:<DATA_PATH>
   msgstore.db        ← master mergeado (syncer escribe)
   wa.db              ← contactos
   .sync_state.json   ← hashes para detectar cambios
@@ -52,7 +52,7 @@ ghcr.io/dperez-sct/whatsckup-frontend:dev8
       │           NFS upload (/mnt/input)  /api/chats/{id}/media
       │                                    /media/{file_path}  (desde /mnt/input)
       │                                    /api/status, /health
-      └── frontend (React/nginx) ──→  whats.cloud.jukito.com (HTTPS, traefik)
+      └── frontend (React/nginx) ──→  <tu-dominio> (HTTPS)
 ```
 
 ## Estructura del repositorio
@@ -151,7 +151,7 @@ API REST en FastAPI. Lee la base de datos en modo read-only.
 
 ### Nombres de contactos (VCF)
 
-El backend carga automáticamente un fichero VCF. Los números se normalizan (prefijo `34` a números españoles de 9 dígitos) y se cruzan con los JIDs de la base de datos. También resuelve JIDs de tipo `@lid` (identificadores internos de WhatsApp) a través de la tabla `jid_map`.
+El backend carga automáticamente un fichero VCF. Los números se normalizan (prefijo de país a números locales de 9 dígitos) y se cruzan con los JIDs de la base de datos. También resuelve JIDs de tipo `@lid` (identificadores internos de WhatsApp) a través de la tabla `jid_map`.
 
 Para generarlo: en Android, exporta los contactos desde la app Contactos → Exportar → `.vcf`.
 
@@ -201,23 +201,32 @@ En producción (k8s), nginx hace el proxy internamente al servicio `whatsckup-ba
 
 ### 1. Preparación
 
+Edita `k8s/volumes.yaml` con los datos de tu NFS:
+- `<NFS_SERVER>` → IP de tu servidor NFS
+- `<UPLOAD_PATH>` → export donde el móvil sube los ficheros (crypt15 + Media/ + contacts.vcf)
+- `<DATA_PATH>` → export para la DB maestra
+
+Edita `k8s/ingress.yaml` con tu dominio.
+
+Crea el secret con tu clave crypt15 (**no subir a git**, está en `.gitignore`):
+
 ```bash
-kubectl apply -f k8s/namespace.yaml
-kubectl apply -f k8s/secret.yaml      # contiene CRYPT_KEY en base64 (no subir a git)
-kubectl apply -f k8s/configmap.yaml
+# Genera el valor base64
+echo -n "<tu_clave_hex_64_chars>" | base64
+
+# Edita k8s/secret.yaml con el valor anterior
 ```
 
-### 2. Volúmenes NFS
-
-`k8s/volumes.yaml` ya tiene configurados:
-- `192.168.1.1:/volume1/k8s/whatsckup/upload` → input (crypt15 + Media/ + contacts.vcf)
-- `192.168.1.1:/volume1/k8s/whatsckup/data`   → app (master DB)
+Despliega la configuración base:
 
 ```bash
+kubectl apply -f k8s/namespace.yaml
+kubectl apply -f k8s/secret.yaml
+kubectl apply -f k8s/configmap.yaml
 kubectl apply -f k8s/volumes.yaml
 ```
 
-### 3. Despliegue
+### 2. Despliegue
 
 ```bash
 kubectl apply -f k8s/backend.yaml
@@ -226,7 +235,7 @@ kubectl apply -f k8s/cronjob.yaml
 kubectl apply -f k8s/ingress.yaml
 ```
 
-### 4. Primer sync manual
+### 3. Primer sync manual
 
 ```bash
 kubectl create job --from=cronjob/whatsckup-syncer first-sync -n whats
@@ -243,23 +252,40 @@ Edita `schedule` en `k8s/cronjob.yaml`:
 | `0 */6 * * *` | Cada 6 horas |
 | `0 2 * * *` | Una vez al día a las 2:00 |
 
+### Recuperación ante pérdida del clúster
+
+Los datos residen en los NFS, no en el clúster. Si pierdes k8s pero conservas los volúmenes NFS, basta con redesplegar en orden:
+
+```bash
+kubectl apply -f k8s/namespace.yaml
+kubectl apply -f k8s/secret.yaml      # ⚠️ guárdalo fuera del repo (no está en git)
+kubectl apply -f k8s/configmap.yaml
+kubectl apply -f k8s/volumes.yaml
+kubectl apply -f k8s/backend.yaml
+kubectl apply -f k8s/frontend.yaml
+kubectl apply -f k8s/cronjob.yaml
+kubectl apply -f k8s/ingress.yaml
+```
+
+Los PVs apuntan a los mismos paths NFS, los PVCs se bindean igual y la app arranca donde lo dejó. El único fichero imprescindible que **no está en git** es `k8s/secret.yaml` — guárdalo en un gestor de contraseñas o bóveda segura.
+
 ---
 
 ## Construir y publicar imágenes
 
 ```bash
 # Build
-docker build -t ghcr.io/dperez-sct/whatsckup-syncer:TAG   ./syncer
-docker build -t ghcr.io/dperez-sct/whatsckup-backend:TAG  ./backend
-docker build -t ghcr.io/dperez-sct/whatsckup-frontend:TAG ./frontend
+docker build -t ghcr.io/USUARIO/whatsckup-syncer:TAG   ./syncer
+docker build -t ghcr.io/USUARIO/whatsckup-backend:TAG  ./backend
+docker build -t ghcr.io/USUARIO/whatsckup-frontend:TAG ./frontend
 
 # Push
-docker push ghcr.io/dperez-sct/whatsckup-syncer:TAG
-docker push ghcr.io/dperez-sct/whatsckup-backend:TAG
-docker push ghcr.io/dperez-sct/whatsckup-frontend:TAG
+docker push ghcr.io/USUARIO/whatsckup-syncer:TAG
+docker push ghcr.io/USUARIO/whatsckup-backend:TAG
+docker push ghcr.io/USUARIO/whatsckup-frontend:TAG
 ```
 
-Requiere login: `echo TOKEN | docker login ghcr.io -u dperez-sct --password-stdin`
+Requiere login: `echo TOKEN | docker login ghcr.io -u USUARIO --password-stdin`
 
 ---
 
