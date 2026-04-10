@@ -222,6 +222,7 @@ body { height: 100dvh; overflow: hidden; }
   padding: 40px 20px;
   font-size: 14px;
 }
+.no-results.error { color: #f87171; }
 
 .messages {
   flex: 1;

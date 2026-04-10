@@ -38,6 +38,15 @@ function MediaContent({ media }) {
   )
 }
 
+function useDebounce(value, delay) {
+  const [debounced, setDebounced] = useState(value)
+  useEffect(() => {
+    const t = setTimeout(() => setDebounced(value), delay)
+    return () => clearTimeout(t)
+  }, [value, delay])
+  return debounced
+}
+
 const GROUP_JID_SUFFIX = '@g.us'
 
 export default function MessageView({ chat }) {
@@ -46,8 +55,11 @@ export default function MessageView({ chat }) {
   const [total, setTotal]       = useState(0)
   const [offset, setOffset]     = useState(0)
   const [loading, setLoading]   = useState(false)
+  const [error, setError]       = useState(null)
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo,   setDateTo]   = useState('')
+  const debouncedFrom = useDebounce(dateFrom, 300)
+  const debouncedTo   = useDebounce(dateTo,   300)
   const [showGallery, setShowGallery] = useState(false)
   const LIMIT = 50
 
@@ -55,14 +67,17 @@ export default function MessageView({ chat }) {
   const scrollToBottomRef   = useRef(false)
   const prevScrollHeightRef = useRef(null)
   const jumpTargetRef       = useRef(null)   // { messageId, timestamp } pendiente de scroll
+  const abortControllerRef  = useRef(null)
 
-  // Resetear y recargar cuando cambia chat o filtros de fecha
+  // Resetear y recargar cuando cambia chat o filtros de fecha (debounced)
   useEffect(() => {
+    abortControllerRef.current?.abort()
+    abortControllerRef.current = new AbortController()
     setMessages([])
     setOffset(0)
     setTotal(0)
-    load(chat.id, 0, dateFrom, dateTo, true)
-  }, [chat.id, dateFrom, dateTo])
+    load(chat.id, 0, debouncedFrom, debouncedTo, true, abortControllerRef.current.signal)
+  }, [chat.id, debouncedFrom, debouncedTo])
 
   // Ajustar scroll tras render
   useEffect(() => {
@@ -91,7 +106,7 @@ export default function MessageView({ chat }) {
     }
   }, [messages])
 
-  function load(chatId, off, from, to, initial = false) {
+  function load(chatId, off, from, to, initial = false, signal = null) {
     if (initial) {
       scrollToBottomRef.current = true
     } else {
@@ -99,17 +114,22 @@ export default function MessageView({ chat }) {
     }
 
     setLoading(true)
+    setError(null)
     api.messages(chatId, {
       limit:  LIMIT,
       offset: off,
       after:  dateToAfter(from),
       before: dateToBefore(to),
+      signal,
     })
       .then(data => {
         const batch = [...data.messages].reverse()
         setTotal(data.total)
         setMessages(prev => initial ? batch : [...batch, ...prev])
         setOffset(off + data.messages.length)
+      })
+      .catch(err => {
+        if (err.name !== 'AbortError') setError(err.message)
       })
       .finally(() => setLoading(false))
   }
@@ -122,6 +142,7 @@ export default function MessageView({ chat }) {
     prevScrollHeightRef.current = null
 
     setLoading(true)
+    setError(null)
     // Cargar los mensajes en torno al timestamp (antes = incluye el mensaje)
     api.messages(chat.id, { limit: LIMIT, offset: 0, before: timestamp + 1 })
       .then(data => {
@@ -130,6 +151,7 @@ export default function MessageView({ chat }) {
         setMessages(batch)
         setOffset(data.messages.length)
       })
+      .catch(err => setError(err.message))
       .finally(() => setLoading(false))
   }
 
@@ -193,14 +215,18 @@ export default function MessageView({ chat }) {
         {total > offset && (
           <button
             className="load-more"
-            onClick={() => load(chat.id, offset, dateFrom, dateTo)}
+            onClick={() => load(chat.id, offset, debouncedFrom, debouncedTo)}
             disabled={loading}
           >
             {loading ? 'Cargando…' : `Cargar mensajes anteriores (${total - offset} restantes)`}
           </button>
         )}
 
-        {!loading && messages.length === 0 && (
+        {error && (
+          <div className="no-results error">Error: {error}</div>
+        )}
+
+        {!loading && !error && messages.length === 0 && (
           <div className="no-results">
             {hasFilter ? 'Sin mensajes en ese rango de fechas' : 'Sin mensajes'}
           </div>

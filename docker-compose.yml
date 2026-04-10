@@ -4,9 +4,11 @@ services:
     build: ./backend
     environment:
       APP_PATH: /mnt/app
+      MEDIA_PATH: /mnt/input
       DB_CHECK_INTERVAL: "30"
     volumes:
       - ./app_data:/mnt/app
+      - ./media_input:/mnt/input:ro
       - ./contacts.vcf:/mnt/app/contacts.vcf:ro
     ports:
       - "8000:8000"

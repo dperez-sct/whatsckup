@@ -38,7 +38,6 @@ CRYPT_KEY  = os.getenv("CRYPT_KEY", "")
 STATE_FILE      = APP_PATH / ".sync_state.json"
 MASTER_MSG_DB   = APP_PATH / "msgstore.db"
 MASTER_WA_DB    = APP_PATH / "wa.db"
-MEDIA_DIR       = APP_PATH / "media"
 
 # Satellite tables that hang off message._id.
 # pk:  column that must be unique in master (or None for no-pk tables).
@@ -378,18 +377,11 @@ def merge_msgstore(new_db: Path, master_db: Path):
         dst.close()
 
 
-def sync_media(input_media: Path, app_media: Path):
-    # La media se sirve directamente desde APP_PATH/Media/ (montaje NFS).
-    # No se copia — este paso es un no-op intencional.
-    log.info("Media: servida directamente desde %s (sin copia)", app_media)
-
-
 def run():
     if not CRYPT_KEY:
         raise ValueError("CRYPT_KEY environment variable is required")
 
     APP_PATH.mkdir(parents=True, exist_ok=True)
-    MEDIA_DIR.mkdir(parents=True, exist_ok=True)
 
     state   = load_state()
     changed = False
@@ -425,9 +417,6 @@ def run():
             changed = True
         else:
             log.info("wa.db.crypt15 unchanged")
-
-    # --- media ---
-    sync_media(INPUT_PATH / "WhatsApp" / "Media", MEDIA_DIR)
 
     if changed:
         save_state(state)

@@ -35,6 +35,11 @@ _db_state = {
     "version":      0,      # se incrementa cada vez que cambia el DB
 }
 
+_contacts_cache = {
+    "version": -1,          # _db_state["version"] en el momento del último cálculo
+    "names":   {},           # {jid_raw_string: display_name}
+}
+
 
 def _file_hash(path: Path) -> Optional[str]:
     if not path.exists():
@@ -161,7 +166,11 @@ def contact_names() -> dict[str, str]:
     """
     Devuelve {jid_raw_string: display_name}.
     Fuentes (en orden de prioridad): VCF > wa.db
+    El resultado se cachea y se invalida cuando cambia _db_state["version"].
     """
+    if _contacts_cache["version"] == _db_state["version"]:
+        return _contacts_cache["names"]
+
     names: dict[str, str] = {}
 
     # 1. wa.db (baja prioridad — suele estar vacío en versiones modernas)
@@ -177,28 +186,20 @@ def contact_names() -> dict[str, str]:
         except Exception:
             pass
 
-    # 2. VCF — sobrescribe wa.db si hay coincidencia
+    # 2. VCF + LID mapping — una sola conexión a msgstore.db
     vcf_path = Path(os.getenv("CONTACTS_VCF", str(APP_PATH / "contacts.vcf")))
     vcf = parse_vcf(vcf_path)
-    if vcf:
-        # Los JIDs en msgstore tienen formato "34612345678@s.whatsapp.net"
-        # El campo `user` del JID es solo el número: "34612345678"
-        # Construimos un dict {numero: nombre} y luego mapeamos a JID completo
-        # Para ello consultamos la tabla jid del master DB
-        try:
-            conn = sqlite3.connect(f"file:{MSG_DB}?mode=ro", uri=True)
+    try:
+        conn = sqlite3.connect(f"file:{MSG_DB}?mode=ro", uri=True)
+
+        # VCF: cruza {numero: nombre} con jid.user → jid.raw_string
+        if vcf:
             for row in conn.execute("SELECT raw_string, user FROM jid"):
                 raw_string, user = row[0], row[1]
                 if user in vcf:
                     names[raw_string] = vcf[user]
-            conn.close()
-        except Exception as e:
-            log.warning("Error cruzando VCF con JIDs: %s", e)
 
-    # LID → phone mapping: añadir entradas para JIDs tipo @lid
-    # jid_map relaciona lid_row_id → jid_row_id (teléfono)
-    try:
-        conn = sqlite3.connect(f"file:{MSG_DB}?mode=ro", uri=True)
+        # LID → phone mapping: JIDs tipo @lid a su teléfono
         for row in conn.execute("""
             SELECT jlid.raw_string AS lid_jid, jphone.raw_string AS phone_jid, jphone.user AS phone_user
             FROM jid_map jm
@@ -206,12 +207,15 @@ def contact_names() -> dict[str, str]:
             JOIN jid jphone ON jm.jid_row_id  = jphone._id
         """):
             lid_jid, phone_jid, phone_user = row[0], row[1], row[2]
-            # Usar el nombre del teléfono si existe, si no el número formateado
             names[lid_jid] = names.get(phone_jid) or _pretty_phone(phone_user)
+
         conn.close()
     except Exception as e:
-        log.warning("Error mapeando LIDs a teléfonos: %s", e)
+        log.warning("Error resolviendo contactos desde msgstore: %s", e)
 
+    _contacts_cache["version"] = _db_state["version"]
+    _contacts_cache["names"]   = names
+    log.info("Contactos cacheados (v%d, %d entradas)", _db_state["version"], len(names))
     return names
 
 
@@ -400,7 +404,9 @@ def get_chat_media(
 
 @app.get("/media/{file_path:path}")
 def serve_media(file_path: str):
-    full = MEDIA_DIR / file_path
+    full = (MEDIA_DIR / file_path).resolve()
+    if not full.is_relative_to(MEDIA_DIR.resolve()):
+        raise HTTPException(403, "Forbidden")
     if not full.exists() or not full.is_file():
         raise HTTPException(404, "Media not found")
     return FileResponse(full)

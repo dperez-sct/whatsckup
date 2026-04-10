@@ -106,8 +106,8 @@ export default function MediaGallery({ chat, onClose, onJumpToMessage }) {
       <div className="gallery-body">
         {tab === 'audio' || tab === 'document' ? (
           <div className="gallery-list">
-            {items.map((item, i) => (
-              <div key={i} className="gallery-list-item">
+            {items.map((item) => (
+              <div key={item.message_id} className="gallery-list-item">
                 {tab === 'audio' ? (
                   <>
                     <audio controls src={`/media/${item.file_path}`} className="gallery-audio" />
@@ -138,7 +138,7 @@ export default function MediaGallery({ chat, onClose, onJumpToMessage }) {
         ) : (
           <div className="gallery-grid">
             {items.map((item, i) => (
-              <div key={i} className="gallery-thumb" onClick={() => setLightbox(i)}>
+              <div key={item.message_id} className="gallery-thumb" onClick={() => setLightbox(i)}>
                 {item.mime_type?.startsWith('image/') ? (
                   <img src={`/media/${item.file_path}`} alt="" loading="lazy" />
                 ) : (
