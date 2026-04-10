@@ -81,7 +81,11 @@ whatsckup/
 ### Arranque rápido con Docker Compose
 
 ```bash
-# Coloca en app_data/ los ficheros descifrados (ver sección Syncer)
+# Estructura de directorios esperada:
+#   app_data/      → DB maestra (msgstore.db, wa.db) — generada por el syncer
+#   media_input/   → ficheros multimedia del móvil (Media/WhatsApp Images/…)
+#   contacts.vcf   → exportado desde la app Contactos del móvil
+
 docker compose up -d
 
 # Frontend: http://localhost
@@ -92,13 +96,13 @@ docker compose up -d
 
 ```bash
 # Syncer (primera vez o cuando llegue un backup nuevo)
-python3 -m venv venv && source venv/bin/activate
+python3 -m venv .venv && source .venv/bin/activate
 pip install -r syncer/requirements.txt
 INPUT_PATH=. APP_PATH=./app_data CRYPT_KEY=<tu_clave_hex> python syncer/syncer.py
 
 # Backend
 pip install -r backend/requirements.txt
-APP_PATH=./app_data MEDIA_PATH=./app_data CONTACTS_VCF=./contacts.vcf \
+APP_PATH=./app_data MEDIA_PATH=./media_input CONTACTS_VCF=./contacts.vcf \
   uvicorn backend.main:app --reload --port 8000
 
 # Frontend
